@@ -39,7 +39,7 @@ jobs:
         # запустить написанные разработчиком тесты
         python manage.py test
 
-  # Сразу после них добавьте новую задачу: деплой приложения
+  # Задача: сборка образа и пуш образа в Docker Hub
   build_and_push_to_docker_hub:
       name: Push Docker image to Docker Hub
       runs-on: ubuntu-latest
@@ -63,3 +63,27 @@ jobs:
           with:
             push: true
             tags: vadimskokov/infra_actions:latest
+
+  # Задача: pull образа с Docker Hub на сервер
+  # и запуск контейнера на сервере
+  deploy:
+      # «Раннер» — создание изолированного окружения с последней версией Ubuntu
+      runs-on: ubuntu-latest
+      # после какой задачи выполнять
+      needs: build_and_push_to_docker_hub
+      steps:
+      - name: executing remote ssh commands to deploy
+        # Проверка доступности сервера
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          passphrase: ${{ secrets.PASSPHRASE }} # Если ваш ssh-ключ защищён фразой-паролем
+          script: |
+            # Выполняет pull образа с DockerHub на сервер
+            # имя юзера и репозитория на DockerHub
+            sudo docker pull vadimskokov/infra_actions:latest
+            #остановка всех контейнеров
+            sudo docker stop $(sudo docker ps -a -q)
+            sudo docker run --rm -d -p 5000:5000 vadimskokov/infra_actions:latest 
